@@ -21,6 +21,37 @@ class DepositionParser:
         self._line_map: Dict[str, TranscriptLine] = {}
         self._coord_map: Dict[Tuple[int, int], TranscriptLine] = {}
 
+    @classmethod
+    def for_supported_pdf(cls, pdf_path: str | Path) -> "DepositionParser":
+        """Create a parser for another text-based, 25-line legal transcript.
+
+        This deliberately accepts only the layout this parser can preserve with
+        legal page/line fidelity.  It never substitutes the reference PDF.
+        """
+        path = Path(pdf_path)
+        if not path.exists() or path.suffix.lower() != ".pdf":
+            raise ValueError("Unsupported input: provide an existing PDF file.")
+        try:
+            doc = pymupdf.open(path)
+        except Exception as exc:
+            raise ValueError("Unsupported input: PDF is corrupted or cannot be opened.") from exc
+        structured_pages = []
+        for page_number in range(1, doc.page_count + 1):
+            blocks = doc[page_number - 1].get_text("blocks")
+            slots = set()
+            for block in blocks:
+                match = re.match(r"^(\d{1,2})(?:\n.*)?$", block[4].strip(), re.DOTALL)
+                if match and 1 <= int(match.group(1)) <= 25:
+                    slots.add(int(match.group(1)))
+            if len(slots) >= 10:
+                structured_pages.append(page_number)
+        if not structured_pages:
+            raise ValueError("Unsupported input: no text-based numbered legal transcript pages were found (OCR is not supported).")
+        expected_pages = list(range(min(structured_pages), max(structured_pages) + 1))
+        if structured_pages != expected_pages:
+            raise ValueError("Unsupported input: numbered transcript pages are not a continuous legal-transcript range.")
+        return cls(path, start_page=min(structured_pages), end_page=max(structured_pages))
+
     def parse(self) -> List[TranscriptLine]:
         if not self.pdf_path.exists():
             raise FileNotFoundError(f"Deposition PDF not found at {self.pdf_path}")

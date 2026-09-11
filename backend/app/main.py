@@ -3,8 +3,9 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict, Literal
+from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
@@ -15,6 +16,7 @@ from .services.review_store import ReviewStore
 
 app = FastAPI(title="DepoIndex", version="0.1.0")
 LATEST: Dict[str, Any] = {}
+ACTIVE_PIPELINE = DepoIndexPipeline()
 
 class ReviewRequest(BaseModel):
     status: Literal["ACCEPTED", "EDITED", "REJECTED", "FLAGGED_FOR_REVIEW"]
@@ -32,16 +34,51 @@ def current() -> Dict[str, Any]:
         raise HTTPException(404, "No pipeline run is loaded. POST /api/runs first.")
     return LATEST
 
+def active_validator() -> ProvenanceValidator:
+    """Always resolve source navigation against the active document, never a sample fallback."""
+    return ProvenanceValidator.from_canonical_file(ACTIVE_PIPELINE.transcript_path)
+
 @app.post("/api/runs")
 def run_pipeline() -> Dict[str, Any]:
     global LATEST
-    LATEST = DepoIndexPipeline().run()
+    LATEST = ACTIVE_PIPELINE.run()
     return LATEST
 
 @app.post("/api/parse")
 def parse_deposition() -> Dict[str, Any]:
     """Parse the supplied deposition into the canonical source-of-truth artifact."""
-    return DepoIndexPipeline().parse_source()
+    global ACTIVE_PIPELINE
+    ACTIVE_PIPELINE = DepoIndexPipeline()
+    return ACTIVE_PIPELINE.parse_source()
+
+@app.post("/api/documents")
+async def upload_document(file: UploadFile = File(...)) -> Dict[str, Any]:
+    """Accept a supported text-based legal/deposition PDF; reject all others clearly."""
+    if not file.filename or Path(file.filename).suffix.lower() != ".pdf":
+        raise HTTPException(415, "Unsupported input: upload a PDF file.")
+    root = Path(__file__).resolve().parents[2]
+    document_id = uuid4().hex
+    document_dir = root / "data" / "documents" / document_id
+    document_dir.mkdir(parents=True, exist_ok=False)
+    pdf_path = document_dir / "source.pdf"
+    contents = await file.read()
+    if not contents:
+        raise HTTPException(422, "Unsupported input: uploaded PDF is empty.")
+    pdf_path.write_bytes(contents)
+    global ACTIVE_PIPELINE
+    ACTIVE_PIPELINE = DepoIndexPipeline(
+        pdf_path=pdf_path,
+        transcript_path=document_dir / "processed_transcript.json",
+        runs_dir=document_dir / "runs",
+        reference_document=False,
+    )
+    try:
+        parsed = ACTIVE_PIPELINE.parse_source()
+    except ValueError as exc:
+        # Remove only the newly-created, rejected input; never substitute sample data.
+        pdf_path.unlink(missing_ok=True)
+        raise HTTPException(422, str(exc)) from exc
+    return {"document_id": document_id, "document_type": "supported_legal_deposition", "reference_document": False, **parsed}
 
 @app.get("/", include_in_schema=False)
 def workspace() -> FileResponse:
@@ -69,14 +106,14 @@ def integrity() -> Dict[str, Any]:
 
 @app.get("/api/source/{page}/{line}")
 def source(page: int, line: int) -> Dict[str, Any]:
-    item = ProvenanceValidator.from_canonical_file()._coord_map.get((page, line))
+    item = active_validator()._coord_map.get((page, line))
     if not item: raise HTTPException(404, "Transcript line does not exist")
     return item.to_dict()
 
 @app.get("/api/source-range")
 def source_range(start_page: int, start_line: int, end_page: int, end_line: int) -> list[Dict[str, Any]]:
     """Return an independently verified, highlightable canonical transcript span."""
-    validator = ProvenanceValidator.from_canonical_file()
+    validator = active_validator()
     checked = validator.validate_reference(start_page, start_line, end_page, end_line)
     if not checked.is_valid:
         raise HTTPException(422, checked.error_message or "Invalid source range")
@@ -86,14 +123,14 @@ def source_range(start_page: int, start_line: int, end_page: int, end_line: int)
 def source_topics(page: int, line: int) -> list[Dict[str, Any]]:
     """Bidirectional source-to-topic navigation, based solely on verified ranges."""
     current()
-    if (page, line) not in ProvenanceValidator.from_canonical_file()._coord_map:
+    if (page, line) not in active_validator()._coord_map:
         raise HTTPException(404, "Transcript line does not exist")
     return [segment for segment in LATEST["segments"] if (segment["start_page"], segment["start_line"]) <= (page, line) <= (segment["end_page"], segment["end_line"])]
 
 @app.get("/api/search")
 def search(q: str) -> list[Dict[str, Any]]:
     data = current()
-    validator = ProvenanceValidator.from_canonical_file()
+    validator = active_validator()
     # API payloads stay JSON-native; construct only the fields search needs.
     from .models.topic import TopicSegment, TopicThread, TopicConfidence
     from .models.evidence import EvidenceItem

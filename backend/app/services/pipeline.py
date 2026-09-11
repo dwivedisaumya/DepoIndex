@@ -18,15 +18,18 @@ from .parser import DepositionParser
 
 
 class DepoIndexPipeline:
-    def __init__(self, transcript_path: str | Path | None = None, runs_dir: str | Path | None = None, pdf_path: str | Path | None = None):
+    def __init__(self, transcript_path: str | Path | None = None, runs_dir: str | Path | None = None, pdf_path: str | Path | None = None, reference_document: bool | None = None):
         root = Path(__file__).resolve().parents[3]
         self.transcript_path = Path(transcript_path) if transcript_path else root / "data" / "processed" / "processed_transcript.json"
         self.runs_dir = Path(runs_dir) if runs_dir else root / "data" / "runs"
         self.pdf_path = Path(pdf_path) if pdf_path else root / "data" / "raw" / "Persis_Yu_Deposition_Problem_statement.pdf"
+        self.reference_document = pdf_path is None if reference_document is None else reference_document
 
     def parse_source(self) -> Dict[str, Any]:
         """Rebuild the canonical artifact from the supplied deposition PDF."""
-        parser = DepositionParser(self.pdf_path)
+        # Persis Yu retains its established p.7–88 reference configuration.
+        # Other files must prove they have a supported numbered transcript layout.
+        parser = DepositionParser(self.pdf_path) if self.reference_document else DepositionParser.for_supported_pdf(self.pdf_path)
         lines = parser.parse()
         parser.save_canonical(self.transcript_path)
         windows_path = self.transcript_path.with_name("processed_windows.json")
