@@ -22,4 +22,41 @@ function select(id){let t=data.threads.find(x=>x.thread_id===id),on=new Set([id]
 function integrity(){let i=data.integrity,a=[['Coverage',i.coverage_percentage+'%'],['Provenance errors',i.invalid_references.length+i.evidence_mismatches.length],['Invalid references',i.invalid_references.length],['Evidence mismatches',i.evidence_mismatches.length],['Orphan evidence',i.orphan_evidence.length],['Duplicate IDs',i.duplicate_segment_ids.length],['Gaps',i.suspicious_gaps.length]];$('integritybox').innerHTML=`<span class="badge ${i.healthy?'good':'reentry'}">${i.healthy?'PASS':'WARNING'} · backend validation</span><div class="igrid">${a.map(x=>`<div class="im"><span>${x[0]}</span><b>${x[1]}</b></div>`).join('')}</div>`}function reviews(){$('reviews').innerHTML=data.segments.map(s=>`<article class="review-item"><b>${esc(s.title)}</b> <span class="badge">${esc(s.verification_status)}</span><p>${esc(s.summary||s.description)}</p><button class="quiet" data-source="${s.start_page},${s.start_line},${s.end_page},${s.end_line}">${cite(s)}</button><div class="review-actions"><button data-review="ACCEPTED" data-id="${esc(s.segment_id)}">Accept</button><button class="secondary" data-review="EDITED" data-id="${esc(s.segment_id)}">Edit</button><button class="danger" data-review="REJECTED" data-id="${esc(s.segment_id)}">Reject</button><button class="secondary" data-review="FLAGGED_FOR_REVIEW" data-id="${esc(s.segment_id)}">Flag</button></div></article>`).join('');counts()}function counts(){let c={PENDING:0,ACCEPTED:0,EDITED:0,REJECTED:0,FLAGGED_FOR_REVIEW:0};document.querySelectorAll('[data-review]').forEach(b=>{if(b.dataset.done)c[b.dataset.done]++});$('counts').innerHTML=Object.entries(c).map(x=>`<span class="badge">${x[0].replaceAll('_',' ').toLowerCase()}: ${x[1]}</span>`).join('')}
 async function source(a,b,c,d){$('drawer').classList.add('open');$('source').innerHTML='<div class="line">Retrieving verified canonical transcript span…</div>';try{let x=await api(`/api/source-range?start_page=${a}&start_line=${b}&end_page=${c}&end_line=${d}`);$('smeta').textContent=`Verified source · p. ${a}:${b}–p. ${c}:${d}`;$('source').innerHTML=x.map(l=>`<div class="line"><span class="citation">${esc(l.source_id)} · p. ${l.page}:${l.line}</span> ${esc(l.text)}</div>`).join('')}catch(e){$('smeta').textContent='Source could not be verified';$('source').innerHTML=`<div class="line">${esc(e.message)}</div>`}}async function search(){let q=$('query').value.trim();if(!q)return;$('results').innerHTML='<p class="empty">Searching grounded testimony…</p>';try{let x=await api('/api/search?q='+encodeURIComponent(q));$('results').innerHTML=x.length?x.map(r=>{let s=r.type==='transcript'?r.citation.replace('p. ','').split(':').map(Number):data?.segments.find(z=>z.segment_id===r.segment_id),a=Array.isArray(s)?[s[0],s[1],s[0],s[1]]:s?[s.start_page,s.start_line,s.end_page,s.end_line]:null;return `<article class="result"><div><span class="badge">${esc(r.type.replaceAll('_',' '))}</span> ${r.thread_id?`<span class="badge">${esc(r.thread_id)}</span>`:''}<p><b>${esc(r.citation)}</b> · ${esc(r.text)}</p></div>${a?`<button class="secondary" data-source="${a}">View evidence</button>`:''}</article>`}).join(''):'<p class="empty">No grounded results for this query.</p>'}catch(e){$('results').innerHTML=`<p class="empty">${esc(e.message)}</p>`}}async function review(id,state,b){let p={status:state};if(state==='EDITED'){let v=prompt('Revised topic title (blank retains proposal):');if(v===null)return;if(v.trim())p.revised_title=v.trim()}try{await api('/api/topics/'+encodeURIComponent(id)+'/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)});b.dataset.done=state;b.closest('.review-item').querySelectorAll('[data-review]').forEach(x=>x.disabled=true);counts();status('Review saved: '+state.replaceAll('_',' ').toLowerCase(),'complete')}catch(e){status(e.message,'error')}}
 document.addEventListener('click',e=>{let x=e.target.closest('[data-jump]');if(x)jump(x.dataset.jump);x=e.target.closest('[data-source]');if(x)source(...x.dataset.source.split(',').map(Number));x=e.target.closest('[data-q]');if(x){$('query').value=x.dataset.q;search()}x=e.target.closest('.gnode');if(x)select(x.dataset.thread);x=e.target.closest('[data-review]');if(x)review(x.dataset.id,x.dataset.review,x)});$('upload').onclick=upload;$('sample').onclick=parse;$('run').onclick=run;$('searchbtn').onclick=search;$('query').onkeydown=e=>e.key==='Enter'&&search();$('clear').onclick=()=>{$('query').value='';$('results').innerHTML=''};$('reset').onclick=()=>data&&select(data.threads[0].thread_id);$('close').onclick=()=>$('drawer').classList.remove('open');$('drawer').onclick=e=>e.target===$('drawer')&&$('drawer').classList.remove('open');
+</script><script>
+/* Focused interaction overrides: preserve the existing renderers and API contract. */
+async function upload(){
+  const file=$('pdf').files[0];
+  if(!file){status('Select a PDF first.','error');return}
+  busy(true);status('Validating and parsing uploaded deposition…','working');
+  try{
+    const body=new FormData();body.append('file',file);
+    const parsed=await api('/api/documents',{method:'POST',body});
+    doc={name:file.name,ref:false};renderDoc();
+    status(`Canonical transcript ready: ${parsed.non_empty_lines} non-empty lines. Building index…`,'working');
+    render(await api('/api/runs',{method:'POST'}));
+    status(`Complete · ${data.run.run_id}`,'complete');jump('dashboard');
+  }catch(error){status(error.message,'error')}
+  finally{busy(false)}
+}
+async function search(){
+  const query=$('query').value.trim();
+  if(!query){$('results').innerHTML='<p class="empty">Enter a testimony or topic query.</p>';return}
+  $('results').innerHTML='<p class="empty">Searching grounded testimony…</p>';
+  try{
+    const results=await api('/api/search?q='+encodeURIComponent(query));
+    $('results').innerHTML=results.length?results.map(result=>{
+      const segment=data?.segments.find(item=>item.segment_id===result.segment_id);
+      const source=result.type==='transcript'
+        ?result.citation.replace('p. ','').split(':').map(Number)
+        :segment?[segment.start_page,segment.start_line,segment.end_page,segment.end_line]:null;
+      const range=Array.isArray(source)?[source[0],source[1],source[0],source[1]]:source;
+      const topic=segment?.title || (result.type==='transcript'?'Transcript testimony':'Indexed topic');
+      const ranking=result.semantic_score===undefined?'':`<span class="badge">relevance ${esc(result.semantic_score)}</span>`;
+      const sourceId=result.source_ids?.join(' – ') || 'No source ID returned';
+      return `<article class="result"><div><b>${esc(topic)}</b> ${result.thread_id?`<span class="badge">${esc(result.thread_id)}</span>`:''} ${ranking}<p><span class="citation">${esc(sourceId)} · ${esc(result.citation)}</span><br>${esc(result.text)}</p></div>${range?`<button class="secondary" data-source="${range.join(',')}">View evidence</button>`:''}</article>`;
+    }).join(''):'<p class="empty">No grounded results for this query.</p>';
+  }catch(error){$('results').innerHTML=`<p class="empty">${esc(error.message)}</p>`}
+}
+$('upload').onclick=upload;$('searchbtn').onclick=search;
+$('query').onkeydown=event=>{if(event.key==='Enter'){event.preventDefault();search()}};
 </script></body></html>

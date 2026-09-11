@@ -47,9 +47,12 @@ def run_pipeline() -> Dict[str, Any]:
 @app.post("/api/parse")
 def parse_deposition() -> Dict[str, Any]:
     """Parse the supplied deposition into the canonical source-of-truth artifact."""
-    global ACTIVE_PIPELINE
+    global ACTIVE_PIPELINE, LATEST
     ACTIVE_PIPELINE = DepoIndexPipeline()
-    return ACTIVE_PIPELINE.parse_source()
+    parsed = ACTIVE_PIPELINE.parse_source()
+    # A parsed document has no index until its own pipeline completes.
+    LATEST = {}
+    return parsed
 
 @app.post("/api/documents")
 async def upload_document(file: UploadFile = File(...)) -> Dict[str, Any]:
@@ -65,19 +68,26 @@ async def upload_document(file: UploadFile = File(...)) -> Dict[str, Any]:
     if not contents:
         raise HTTPException(422, "Unsupported input: uploaded PDF is empty.")
     pdf_path.write_bytes(contents)
-    global ACTIVE_PIPELINE
-    ACTIVE_PIPELINE = DepoIndexPipeline(
+    candidate_pipeline = DepoIndexPipeline(
         pdf_path=pdf_path,
         transcript_path=document_dir / "processed_transcript.json",
         runs_dir=document_dir / "runs",
         reference_document=False,
     )
     try:
-        parsed = ACTIVE_PIPELINE.parse_source()
+        parsed = candidate_pipeline.parse_source()
     except ValueError as exc:
         # Remove only the newly-created, rejected input; never substitute sample data.
         pdf_path.unlink(missing_ok=True)
         raise HTTPException(422, str(exc)) from exc
+    except Exception as exc:
+        # PDF-library extraction failures are unsupported input, not server errors.
+        pdf_path.unlink(missing_ok=True)
+        raise HTTPException(422, "Unsupported input: the PDF could not be read as a numbered legal transcript.") from exc
+    global ACTIVE_PIPELINE, LATEST
+    # Do not expose a partly parsed document, or a previous document's run.
+    ACTIVE_PIPELINE = candidate_pipeline
+    LATEST = {}
     return {"document_id": document_id, "document_type": "supported_legal_deposition", "reference_document": False, **parsed}
 
 @app.get("/", include_in_schema=False)
