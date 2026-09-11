@@ -6,7 +6,7 @@ from typing import Any, Dict, Literal
 from uuid import uuid4
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from pydantic import BaseModel
 
 from .services.pipeline import DepoIndexPipeline
@@ -87,6 +87,25 @@ def workspace() -> FileResponse:
 @app.get("/api/dashboard")
 def dashboard() -> Dict[str, Any]:
     data = current(); return {"run": data["run"], "integrity": data["integrity"]}
+
+@app.get("/api/export/json")
+def export_json() -> JSONResponse:
+    """Download the verified payload from the active completed run."""
+    return JSONResponse(current(), headers={"Content-Disposition": "attachment; filename=depoindex-index.json"})
+
+@app.get("/api/export/markdown")
+def export_markdown() -> PlainTextResponse:
+    """Download the exporter-generated Markdown for the active completed run."""
+    data = current()
+    lines = ["# DepoIndex Topic Index", "", "## Chronological segments", ""]
+    for segment in data["segments"]:
+        lines += [
+            f"### {segment['title']}",
+            f"**Citation:** p. {segment['start_page']}:{segment['start_line']}–p. {segment['end_page']}:{segment['end_line']}",
+            "", segment["description"], "",
+        ]
+        lines.extend(f"> {item['citation']}: {item['text']}" for item in segment.get("evidence", []))
+    return PlainTextResponse("\n".join(lines) + "\n", headers={"Content-Disposition": "attachment; filename=depoindex-topic-index.md"})
 
 @app.get("/api/topics")
 def topics() -> list[Dict[str, Any]]:
