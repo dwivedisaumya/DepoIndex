@@ -1,9 +1,8 @@
 """FastAPI application for the attorney-facing DepoIndex workspace."""
 from __future__ import annotations
 
-import json
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Literal
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
@@ -12,14 +11,21 @@ from pydantic import BaseModel
 from .services.pipeline import DepoIndexPipeline
 from .services.provenance import ProvenanceValidator
 from .services.search import GroundedSearch
+from .services.review_store import ReviewStore
 
 app = FastAPI(title="DepoIndex", version="0.1.0")
 LATEST: Dict[str, Any] = {}
 
 class ReviewRequest(BaseModel):
-    status: str
+    status: Literal["ACCEPTED", "EDITED", "REJECTED", "FLAGGED_FOR_REVIEW"]
     revised_title: str | None = None
+    revised_description: str | None = None
+    revised_start_page: int | None = None
+    revised_start_line: int | None = None
+    revised_end_page: int | None = None
+    revised_end_line: int | None = None
     notes: str | None = None
+    reviewed_by: str = "Attorney Reviewer"
 
 def current() -> Dict[str, Any]:
     if not LATEST:
@@ -62,10 +68,21 @@ def source(page: int, line: int) -> Dict[str, Any]:
     if not item: raise HTTPException(404, "Transcript line does not exist")
     return item.to_dict()
 
+@app.get("/api/source-range")
+def source_range(start_page: int, start_line: int, end_page: int, end_line: int) -> list[Dict[str, Any]]:
+    """Return an independently verified, highlightable canonical transcript span."""
+    validator = ProvenanceValidator.from_canonical_file()
+    checked = validator.validate_reference(start_page, start_line, end_page, end_line)
+    if not checked.is_valid:
+        raise HTTPException(422, checked.error_message or "Invalid source range")
+    return [validator._id_map[source_id].to_dict() for source_id in checked.source_ids]
+
 @app.get("/api/source/{page}/{line}/topics")
 def source_topics(page: int, line: int) -> list[Dict[str, Any]]:
     """Bidirectional source-to-topic navigation, based solely on verified ranges."""
     current()
+    if (page, line) not in ProvenanceValidator.from_canonical_file()._coord_map:
+        raise HTTPException(404, "Transcript line does not exist")
     return [segment for segment in LATEST["segments"] if (segment["start_page"], segment["start_line"]) <= (page, line) <= (segment["end_page"], segment["end_line"])]
 
 @app.get("/api/search")
@@ -85,6 +102,10 @@ def review(segment_id: str, review: ReviewRequest) -> Dict[str, Any]:
     data = current()
     item = next((s for s in data["segments"] if s["segment_id"] == segment_id), None)
     if not item: raise HTTPException(404, "Topic segment does not exist")
-    item.setdefault("attorney_review", {})
-    item["attorney_review"] = review.model_dump()
-    return item
+    revision = review.model_dump(exclude={"status", "reviewed_by"}, exclude_none=True)
+    return ReviewStore().save(segment_id, data["run"]["run_id"], review.status, item.copy(), revision, review.reviewed_by)
+
+@app.get("/api/topics/{segment_id}/reviews")
+def reviews(segment_id: str) -> list[Dict[str, Any]]:
+    current()
+    return ReviewStore().list_for_segment(segment_id)

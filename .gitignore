@@ -30,6 +30,7 @@ wheels/
 # Database
 *.db
 *.sqlite3
+data/runs/
 
 # Node / React
 node_modules/

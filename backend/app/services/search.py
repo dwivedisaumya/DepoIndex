@@ -4,6 +4,9 @@ from __future__ import annotations
 import re
 from typing import Any, Dict, Iterable, List
 
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+
 from ..models.topic import TopicSegment, TopicThread
 from .provenance import ProvenanceValidator
 
@@ -26,4 +29,12 @@ class GroundedSearch:
             score = sum(term in haystack for term in terms)
             if score:
                 results.append({"type": "topic_segment", "score": score, "segment_id": segment.segment_id, "thread_id": segment.thread_id, "source_ids": [segment.start_id, segment.end_id], "citation": f"p. {segment.start_page}:{segment.start_line}–p. {segment.end_page}:{segment.end_line}", "text": segment.summary or segment.description})
-        return sorted(results, key=lambda item: (-item["score"], item["citation"]))[:limit]
+        # TF-IDF adds conceptual ranking beyond exact term-count ordering while
+        # retaining the exact canonical citations returned above.
+        if results:
+            corpus = [item["text"] for item in results]
+            matrix = TfidfVectorizer(stop_words="english").fit_transform(corpus + [query])
+            semantic_scores = cosine_similarity(matrix[-1], matrix[:-1]).ravel()
+            for item, semantic_score in zip(results, semantic_scores):
+                item["semantic_score"] = round(float(semantic_score), 4)
+        return sorted(results, key=lambda item: (-item.get("semantic_score", 0), -item["score"], item["citation"]))[:limit]

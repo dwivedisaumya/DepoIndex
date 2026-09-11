@@ -7,11 +7,15 @@ DepoIndex creates a chronology-first topic index from the supplied Persis Yu dep
 Create a Python 3.11+ virtual environment, install the project, then start the API:
 
 ```powershell
-python -m pip install -e .
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -e ".[dev]"
+python -m pytest -q
 python -m uvicorn backend.app.main:app --reload
 ```
 
-Run `POST /api/runs` to process the complete deposition. The API writes immutable artifacts to `data/runs/<run_id>/`, including `final_index.json` and `topic_index.md`. Use `/docs` for the interactive API. Dashboard, index, timeline/graph data, source navigation, search, integrity, and review endpoints are exposed under `/api`.
+Run `POST /api/runs` to process the complete deposition. The API writes immutable artifacts to `data/runs/<run_id>/`, including `final_index.json` and `topic_index.md`. Use `/docs` for the interactive API. Dashboard, index, timeline/graph data, source navigation, search, integrity, and review endpoints are exposed under `/api`. Attorney reviews are stored separately in `data/depoindex.db`; they never overwrite an AI proposal.
 
 ## Truthful evaluation status
 
