@@ -3,6 +3,7 @@ from backend.app.models.topic import TopicConfidence, TopicSegment
 from backend.app.services.exporter import IndexExporter
 from backend.app.services.integrity import IndexIntegrityAuditor
 from backend.app.services.provenance import ProvenanceValidator
+from backend.app.models.transcript import TranscriptLine
 
 
 def verified_segment():
@@ -22,3 +23,12 @@ def test_export_contains_citations(tmp_path):
     payload = IndexExporter().build_payload([segment], [], [], {"healthy": True}, {"run_id": "test"})
     output = IndexExporter().write_markdown(payload, tmp_path / "index.md")
     assert "p. 11:2" in output.read_text(encoding="utf-8")
+
+
+def test_regions_handles_transcriptline_page_boundary_continuity():
+    lines = [
+        TranscriptLine("p11_l25", 11, 25, "end", "end"),
+        TranscriptLine("p12_l01", 12, 1, "start", "start"),
+    ]
+    regions = IndexIntegrityAuditor._regions(lines, threshold=2)
+    assert regions == [{"start_id": "p11_l25", "end_id": "p12_l01", "line_count": 2}]

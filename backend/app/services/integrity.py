@@ -82,7 +82,10 @@ class IndexIntegrityAuditor:
         count = 0
         for line in lines:
             coord = (line.page, line.line)
-            contiguous = previous is not None and (coord[0] == previous[0] and coord[1] == previous[1] + 1 or coord[0] == previous[0] + 1 and previous[1] == 25 and coord[1] == 1)
+            contiguous = previous is not None and (
+                (line.page == previous.page and line.line == previous.line + 1)
+                or (line.page == previous.page + 1 and previous.line == 25 and line.line == 1)
+            )
             if start is None or not contiguous:
                 if start and count >= threshold:
                     regions.append({"start_id": start.source_id, "end_id": previous.source_id, "line_count": count})
