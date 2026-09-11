@@ -24,6 +24,17 @@ async function source(a,b,c,d){$('drawer').classList.add('open');$('source').inn
 document.addEventListener('click',e=>{let x=e.target.closest('[data-jump]');if(x)jump(x.dataset.jump);x=e.target.closest('[data-source]');if(x)source(...x.dataset.source.split(',').map(Number));x=e.target.closest('[data-q]');if(x){$('query').value=x.dataset.q;search()}x=e.target.closest('.gnode');if(x)select(x.dataset.thread);x=e.target.closest('[data-review]');if(x)review(x.dataset.id,x.dataset.review,x)});$('upload').onclick=upload;$('sample').onclick=parse;$('run').onclick=run;$('searchbtn').onclick=search;$('query').onkeydown=e=>e.key==='Enter'&&search();$('clear').onclick=()=>{$('query').value='';$('results').innerHTML=''};$('reset').onclick=()=>data&&select(data.threads[0].thread_id);$('close').onclick=()=>$('drawer').classList.remove('open');$('drawer').onclick=e=>e.target===$('drawer')&&$('drawer').classList.remove('open');
 </script><script>
 /* Focused interaction overrides: preserve the existing renderers and API contract. */
+async function parse(){
+  busy(true);status('Parsing reference deposition…','working');
+  try{
+    const parsed=await api('/api/parse',{method:'POST'});
+    doc={name:'Persis Yu Deposition',ref:true};renderDoc();
+    status(`Canonical transcript ready: ${parsed.non_empty_lines} non-empty lines. Building index…`,'working');
+    render(await api('/api/runs',{method:'POST'}));
+    status(`Complete · ${data.run.run_id}`,'complete');jump('dashboard');
+  }catch(error){status(error.message,'error')}
+  finally{busy(false)}
+}
 async function upload(){
   const file=$('pdf').files[0];
   if(!file){status('Select a PDF first.','error');return}
@@ -57,6 +68,6 @@ async function search(){
     }).join(''):'<p class="empty">No grounded results for this query.</p>';
   }catch(error){$('results').innerHTML=`<p class="empty">${esc(error.message)}</p>`}
 }
-$('upload').onclick=upload;$('searchbtn').onclick=search;
+$('sample').onclick=parse;$('upload').onclick=upload;$('searchbtn').onclick=search;
 $('query').onkeydown=event=>{if(event.key==='Enter'){event.preventDefault();search()}};
 </script></body></html>
