@@ -1,3 +1,9 @@
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["backend/tests"]
+
+[project]
+name = "depoindex"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = ["pymupdf", "scikit-learn", "fastapi", "uvicorn", "pydantic"]

@@ -28,10 +28,10 @@ Traditional legal AI systems suffer from hallucinated citations, lost page refer
 [Topic Relationship Graph & Index Integrity Engine]
         │
         ▼
-[FastAPI REST API + SQLite Layer]
+[FastAPI REST API + run-artifact layer]
         │
         ▼
-[React 18 + TypeScript + Tailwind Attorney Workspace]
+[Attorney workspace (FastAPI-served HTML; API-first and replaceable)]
 ```
 
 ---
@@ -86,16 +86,16 @@ Answers the critical engineering challenge: *"How do you detect if part of the t
 4. **`topic_detector.py`:** Proposes candidate topics with evidence IDs. Supports OpenAI/Gemini structured outputs with deterministic semantic fallback.
 5. **`boundary_refiner.py`:** Resolves candidate boundaries to real Q&A pairs; detects digressions and cross-page continuations.
 6. **`reentry_detector.py`:** Compares semantic embeddings and topic labels across the deposition timeline to identify re-entries.
-7. **`graph_builder.py`:** Constructs the interactive topic relationship graph (threads, segments, evidence, relations).
-8. **`search.py`:** Grounded semantic search over topic threads, segments, and testimony lines with exact provenance citations.
-9. **`integrity.py`:** Audits coverage gaps, line continuity, and verification health.
-10. **`exporter.py`:** Generates JSON, Markdown, and self-contained HTML exports.
+7. **`search.py`:** Grounded local search over topic segments and testimony lines with exact provenance citations.
+8. **`integrity.py`:** Audits coverage gaps, duplicate segments, orphan evidence, and verification health.
+9. **`exporter.py`:** Generates JSON and Markdown exports.
+10. **`pipeline.py`:** Produces immutable per-run source artifacts and final indexes.
 
 ---
 
 ## 4. Frontend Architecture (`frontend/src/`)
 
-Built with React 18, TypeScript, Tailwind CSS, and Lucide icons:
+The supplied project had no frontend scaffold. The added API-first workspace is served by FastAPI and provides the following data views; it can be replaced by a React client without changing backend contracts:
 - **`Dashboard`:** Executive KPI metrics (Total Topics, Verified Topics, Topic Threads, Re-entries, Line Coverage %, Provenance Errors = 0).
 - **`TopicIndex`:** Chronological master index with sorting, confidence badges, verification pills, and expandable evidence chains.
 - **`Timeline`:** Vertical interactive deposition timeline illustrating chronological topic progression and re-entry points.
@@ -111,12 +111,11 @@ Built with React 18, TypeScript, Tailwind CSS, and Lucide icons:
 
 ## 5. Persistence & Reproducibility Strategy
 
-1. **SQLite Database (`data/depoindex.db`):** Lightweight, relational persistence storing all lines, threads, segments, relationships, reviews, and runs.
-2. **Run Artifact Storage (`data/runs/<run_id>/`):** Every pipeline execution writes immutable snapshots:
+1. **Run Artifact Storage (`data/runs/<run_id>/`):** Every pipeline execution writes immutable snapshots:
    - `parsed_transcript.json`
    - `windows.json`
    - `candidate_topics.json`
    - `refined_topics.json`
    - `final_index.json`
    - `run_metadata.json`
-3. **Deterministic Testing:** Automated test suites in `tests/` verify parser correctness, provenance validation edge cases, boundary rules, and stability metrics.
+2. **Deterministic Testing:** Automated test suites in `tests/` verify parser correctness, provenance validation edge cases, boundary rules, exports, and index integrity.
