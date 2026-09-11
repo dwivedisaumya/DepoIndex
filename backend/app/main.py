@@ -38,6 +38,11 @@ def run_pipeline() -> Dict[str, Any]:
     LATEST = DepoIndexPipeline().run()
     return LATEST
 
+@app.post("/api/parse")
+def parse_deposition() -> Dict[str, Any]:
+    """Parse the supplied deposition into the canonical source-of-truth artifact."""
+    return DepoIndexPipeline().parse_source()
+
 @app.get("/", include_in_schema=False)
 def workspace() -> FileResponse:
     return FileResponse(Path(__file__).parent / "static" / "index.html")

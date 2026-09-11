@@ -12,10 +12,14 @@ python -m venv .venv
 python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
 python -m pytest -q
+python -m backend.app.cli parse
+python -m backend.app.cli run
 python -m uvicorn backend.app.main:app --reload
 ```
 
 Run `POST /api/runs` to process the complete deposition. The API writes immutable artifacts to `data/runs/<run_id>/`, including `final_index.json` and `topic_index.md`. Use `/docs` for the interactive API. Dashboard, index, timeline/graph data, source navigation, search, integrity, and review endpoints are exposed under `/api`. Attorney reviews are stored separately in `data/depoindex.db`; they never overwrite an AI proposal.
+
+The browser demo’s first button reparses the supplied PDF; the second creates a complete, exportable index run. See `docs/compliance_audit.md` for requirement-level status.
 
 ## Truthful evaluation status
 

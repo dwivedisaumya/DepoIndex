@@ -14,11 +14,26 @@ from .integrity import IndexIntegrityAuditor
 from .provenance import ProvenanceValidator
 from .reentry_detector import TopicThreadAndReentryEngine
 from .topic_detector import CandidateTopicDetector
+from .parser import DepositionParser
 
 
 class DepoIndexPipeline:
-    def __init__(self, transcript_path: str | Path = "data/processed/processed_transcript.json", runs_dir: str | Path = "data/runs"):
-        self.transcript_path, self.runs_dir = Path(transcript_path), Path(runs_dir)
+    def __init__(self, transcript_path: str | Path | None = None, runs_dir: str | Path | None = None, pdf_path: str | Path | None = None):
+        root = Path(__file__).resolve().parents[3]
+        self.transcript_path = Path(transcript_path) if transcript_path else root / "data" / "processed" / "processed_transcript.json"
+        self.runs_dir = Path(runs_dir) if runs_dir else root / "data" / "runs"
+        self.pdf_path = Path(pdf_path) if pdf_path else root / "data" / "raw" / "Persis_Yu_Deposition_Problem_statement.pdf"
+
+    def parse_source(self) -> Dict[str, Any]:
+        """Rebuild the canonical artifact from the supplied deposition PDF."""
+        parser = DepositionParser(self.pdf_path)
+        lines = parser.parse()
+        parser.save_canonical(self.transcript_path)
+        windows_path = self.transcript_path.with_name("processed_windows.json")
+        chunker = TranscriptChunker(lines)
+        chunker.create_windows()
+        chunker.save_windows(windows_path)
+        return {"source_pdf": str(self.pdf_path), "canonical_transcript": str(self.transcript_path), "windows": str(windows_path), "total_slots": len(lines), "non_empty_lines": sum(not line.is_empty for line in lines)}
 
     def run(self) -> Dict[str, Any]:
         validator = ProvenanceValidator.from_canonical_file(self.transcript_path)
