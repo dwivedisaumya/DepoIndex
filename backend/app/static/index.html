@@ -43,15 +43,15 @@ async function upload(){
     const body=new FormData();body.append('file',file);
     const parsed=await api('/api/documents',{method:'POST',body});
     doc={name:file.name,ref:false};renderDoc();
-    status(`Canonical transcript ready: ${parsed.non_empty_lines} non-empty lines. Building index…`,'working');
-    render(await api('/api/runs',{method:'POST'}));
-    status(`Complete · ${data.run.run_id}`,'complete');jump('dashboard');
+    clearActiveRun();
+    status(`Upload complete: ${parsed.non_empty_lines} canonical lines. Run the index to enable grounded search.`,'ready');
   }catch(error){status(error.message,'error')}
   finally{busy(false)}
 }
 async function search(){
   const query=$('query').value.trim();
   if(!query){$('results').innerHTML='<p class="empty">Enter a testimony or topic query.</p>';return}
+  if(!data){$('results').innerHTML='<p class="empty">Upload complete. Run the index to enable grounded search.</p>';return}
   $('results').innerHTML='<p class="empty">Searching grounded testimony…</p>';
   try{
     const results=await api('/api/search?q='+encodeURIComponent(query));
@@ -67,6 +67,17 @@ async function search(){
       return `<article class="result"><div><b>${esc(topic)}</b> ${result.thread_id?`<span class="badge">${esc(result.thread_id)}</span>`:''} ${ranking}<p><span class="citation">${esc(sourceId)} · ${esc(result.citation)}</span><br>${esc(result.text)}</p></div>${range?`<button class="secondary" data-source="${range.join(',')}">View evidence</button>`:''}</article>`;
     }).join(''):'<p class="empty">No grounded results for this query.</p>';
   }catch(error){$('results').innerHTML=`<p class="empty">${esc(error.message)}</p>`}
+}
+function clearActiveRun(){
+  data=null;
+  $('kpis').innerHTML='';
+  $('timeline').innerHTML='<p class="empty">Run the index to view topic progression.</p>';
+  $('topics').innerHTML='<tr><td colspan="4" class="empty">Run the index to view topics for the active document.</td></tr>';
+  $('graph').innerHTML='';$('gdetail').textContent='Run the index to view topic relationships.';
+  $('reentries').innerHTML='<h3>Re-entry explorer</h3><p class="empty">Run the index to trace topic appearances.</p>';
+  $('integritybox').innerHTML='<p class="empty">Run the index to inspect coverage and provenance health.</p>';
+  $('reviews').innerHTML='<p class="empty">Run the index to review proposed topics.</p>';
+  $('counts').innerHTML='';$('results').innerHTML='';
 }
 $('sample').onclick=parse;$('upload').onclick=upload;$('searchbtn').onclick=search;
 $('query').onkeydown=event=>{if(event.key==='Enter'){event.preventDefault();search()}};
