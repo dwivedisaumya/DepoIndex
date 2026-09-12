@@ -72,13 +72,12 @@ The Persis Yu reference workflow and supported uploaded-document workflow mainta
 
 ## Submission Commits
 
-**Final submission commit:** `1f0467cce54f5223aa95d5dcf54f81589fddebd7`
+**Final submission commit:** `f5ae08dc3e71d424be8956e9a2c0b1d4e377682a`
 
 **Meaningful earlier commit:** `375e1d4`
 
-### What changed and why
-
-Between these commits, DepoIndex was developed from the reference deposition parsing flow into a complete, evidence-grounded legal deposition indexing application.
+**What changed and why:**  
+The project evolved from the initial reference deposition parsing workflow into a complete, verifiable deposition indexing application. The later development added grounded testimony search, topic threads, chronology, source-level navigation, provenance and integrity checks, review support, exports, and support for uploaded legal/deposition PDFs. These changes were made to improve reliability, traceability, and attorney usability while keeping the canonical transcript as the source of truth.
 
 Key improvements included:
 - Improved deposition parsing and canonical transcript handling
