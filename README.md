@@ -72,7 +72,7 @@ The Persis Yu reference workflow and supported uploaded-document workflow mainta
 
 ## Submission Commits
 
-**Final submission commit:** `FINAL_SHA`
+**Final submission commit:** `1f0467cce54f5223aa95d5dcf54f81589fddebd7`
 
 **Meaningful earlier commit:** `375e1d4`
 
