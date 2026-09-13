@@ -356,7 +356,7 @@ The repository was developed incrementally rather than as a single final commit.
 
 **Final Submission Commit**
 
-`REPLACE_WITH_FINAL_SUBMISSION_COMMIT_SHA`
+`096c3eb`
 
 **Meaningful Earlier Commit**
 
