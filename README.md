@@ -92,7 +92,7 @@ demonstrate the deposition indexing workflow.
                     /         \
                   JSON       Markdown
 
-
+``` 
 ## Architecture Principle
 
 The original transcript remains the source of truth.
