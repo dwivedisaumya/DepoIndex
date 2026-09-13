@@ -10,376 +10,239 @@
 
 # Failure Case Analysis
 
-This report documents three observed failure cases from the manual validation of the supplied DepoIndex Topic Index output.
+The following cases were identified during manual validation of the
+supplied DepoIndex Topic Index.
 
-The failures are based on actual reviewed entries and are not hypothetical examples.
-
-The three cases cover:
-
-1. A systemic page-location error
-2. Topic-label hallucination / mismatch with cited evidence
-3. Over-segmentation, overlap, and nested citation ranges
+The cases focus on genuine weaknesses in topic labeling and segmentation.
+The previously suspected systemic +1 page offset is not included because
+re-verification against the actual Persis Yu PDF showed that the generated
+page/line coordinates are correct.
 
 ---
 
-# Failure Case 1 — Systemic +1 Page Offset
+# Failure Case 1 — Topic Label Mismatch
 
-## Entry / Topic / Run
+## Entry
 
-**All 20 reviewed entries — Run 1 / the only generated run**
+**Entry 16 — Run 1**
 
----
+Topic label:
+
+`ITT Technical Institute & For-Profit Lending`
+
+Citation:
+
+`p. 26:15–p. 27:9`
 
 ## What Went Wrong?
 
-Every single page citation is off by exactly **+1 page** versus the real transcript.
+The cited testimony is primarily a housekeeping / report paragraph-numbering
+exchange rather than substantive ITT or for-profit-lending testimony.
 
-For example, an index citation beginning on p. 7 corresponds to testimony that actually begins on p. 6 of the real transcript.
+The generated location is correct, but the topic label does not accurately
+describe the cited span.
 
-This occurred consistently across all 20 manually reviewed entries.
+## What Should Have Happened?
 
----
+The entry should either:
 
-## Why Did It Happen?
+- use a label describing the report/paragraph-numbering discussion, or
+- be merged into the surrounding topic if the exchange does not represent
+  a meaningful independent subject.
 
-The observed behavior indicates a page-indexing bug in extraction.
+## Why Did It Fail?
 
-The most likely cause is that an extra cover/caption or exhibit page was counted into the running "Page N" label, shifting every subsequent reference by one page for the rest of the document.
-
----
+The topic-label generation appears to be influenced by broader surrounding
+context rather than being strictly grounded in the final citation span.
 
 ## Impact
 
-An attorney opening any cited page would land one page after the actual testimony, every single time.
-
-This fails the assignment's own bar:
-
-> A plausible label with the wrong location is a failure.
-
-Therefore, this is not a small isolated citation problem. It affects the location accuracy of **all 20 sampled entries**.
-
-A topic index whose locations consistently point to the wrong page cannot reliably serve its primary navigation and verification purpose.
-
----
+An attorney searching for ITT-related testimony could be directed to an
+irrelevant housekeeping exchange.
 
 ## How to Fix
 
-1. Derive page numbers directly from the transcript's own printed `"Page N"` stamps / line-number column instead of a separately counted physical-page index.
-
-2. Add an automated citation verifier that re-locates each entry's quoted evidence in the source text.
-
-3. Reject the entry if the returned page/line does not match the citation stored in the index.
-
-This would make citation correctness an explicit validation step rather than relying on the extraction page counter.
+1. Generate labels only from the final evidence span.
+2. Require the model to justify the label using the cited text.
+3. Use a controlled topic vocabulary where appropriate.
+4. Reject labels whose key subject is not supported by the citation.
 
 ---
 
-## Evidence / Citation
+# Failure Case 2 — Nested Topic Range
 
-The systemic offset was independently verified at three widely separated points:
+## Entry
 
-- Real p. 6 vs. claimed p. 7 — opening admonitions
-- Real p. 46 vs. claimed p. 47 — CFPB settlement order testimony
-- Real p. 86 vs. claimed p. 87 — PEAKS investigations near the end
+**Entry 13 inside Entry 12**
 
-The constant offset was observed across the approximately 91-page transcript.
+Entry 12:
 
----
+`p. 19:15–p. 24:4`
 
-# Failure Case 2 — Topic Label Does Not Match Cited Testimony
+Entry 13:
 
-## Entry / Topic / Run
-
-**Entries 5, 6 and 16 — Run 1**
-
-- Entry 5: `"PEAKS Loan Unenforceability & 2020 Settlement"`
-- Entry 6: `"ITT Technical Institute & For-Profit Lending"`
-- Entry 16: `"ITT Technical Institute & For-Profit Lending"`
-
----
+`p. 23:19–p. 23:22`
 
 ## What Went Wrong?
 
-The topic labels do not match the cited testimony.
+Entry 13 is completely contained inside Entry 12.
 
-### Entry 5
+Although the cited location itself is correct, the same broader testimony is
+claimed by two Topic Index entries.
 
-Entry 5 is labeled:
+## What Should Have Happened?
 
-**PEAKS Loan Unenforceability & 2020 Settlement**
+If the short PEAKS/ITT exchange represents a genuine independent topic, the
+boundary should be explicitly redrawn so that the ranges do not nest
+unnecessarily.
 
-However, its actual cited testimony is the witness describing SBPC's general policy-advocacy agenda.
+Otherwise, it should remain part of the larger loan-servicing topic.
 
-Nothing about PEAKS loan unenforceability or the 2020 settlement appears in the cited span.
+## Why Did It Fail?
 
-### Entry 6
-
-Entry 6 is labeled:
-
-**ITT Technical Institute & For-Profit Lending**
-
-However, the actual cited testimony is still SBPC's general policy-initiative work and borrower protections.
-
-The cited span is not ITT-specific or substantive for-profit-lending testimony.
-
-### Entry 16
-
-Entry 16 is also labeled:
-
-**ITT Technical Institute & For-Profit Lending**
-
-However, the actual testimony is a housekeeping question about paragraph numbering in the expert report.
-
-Nothing about ITT or for-profit lending appears in the cited span.
-
----
-
-## Why Did It Happen?
-
-The behavior appears consistent with topic-label generation drawing on a wider or summarized context window rather than being grounded strictly in the exact quoted span.
-
-A nearby high-salience keyword such as `"ITT"` or `"PEAKS"` may have influenced the label even though that subject was not actually discussed in the cited evidence.
-
-This represents a classic hallucination risk when label generation and citation extraction are not tightly coupled to the same evidence.
-
----
+The segmentation stage can create a new topic from a short exchange without
+checking whether its range is already contained inside a neighboring topic.
 
 ## Impact
 
-This is worse than a missing entry because the index can confidently direct an attorney to unrelated testimony.
-
-For example, an attorney searching for:
-
-**"PEAKS Loan Unenforceability"**
-
-could be directed to SBPC advocacy testimony that does not contain the requested subject.
-
-The user could therefore miss the actual PEAKS/settlement discussion elsewhere in the transcript while trusting that the index has already located it.
-
-This undermines trust in the index.
-
----
+This creates redundant navigation and makes it unclear whether both rows
+should be treated as independent topics.
 
 ## How to Fix
-
-1. Generate the topic label only from the small quoted span backing the citation.
-
-2. Require a self-check step where the model must justify the topic label using solely the quoted text.
-
-3. Constrain labels to a controlled topic vocabulary where appropriate.
-
-4. Use a taxonomy derived from the case's exhibit list, complaint, or issues list.
-
-5. Require the model to explicitly justify any deviation from the controlled vocabulary.
-
-The central requirement is that the label must be grounded in the exact evidence used for the citation.
-
----
-
-## Evidence / Citation
-
-Entry 5's actual cited testimony on real p. 11 includes discussion of:
-
-- Issues related to the student loan safety net
-- Adequate protections for federal student loan borrowers
-- Issues of racial equity
-
-There is no PEAKS or settlement language anywhere in the cited span.
-
----
-
-# Failure Case 3 — Over-Segmentation, Overlap, and Nested Ranges
-
-## Entry / Topic / Run
-
-**Run 1**
-
-Affected entries include:
-
-- Entries 10, 13 and 17, which are nested inside neighboring entries.
-- Entries 4/5
-- Entries 6/7
-- Entries 19/20
-
-The latter pairs contain overlapping citation ranges.
-
----
-
-## What Went Wrong?
-
-Three entries are fully contained within a neighboring entry's page/line range.
-
-This means the same testimony is claimed by more than one Topic Index row.
-
-Three adjacent pairs also overlap by several lines each.
-
-Therefore, the segmentation contains both:
-
-- **Nested ranges**
-- **Overlapping ranges**
-
----
-
-## Why Did It Happen?
-
-The segmentation behavior appears to fire a "new topic" on a question/answer pair with slightly different surface phrasing, such as a clarifying question, rather than requiring a genuine subject-matter shift.
-
-Boundary detection also appears to operate somewhat independently of labeling.
-
-As a result:
-
-- A short aside can become a new topic.
-- A generic label can be assigned to that aside.
-- The new entry receives its own citation range.
-- The underlying topic has not actually changed.
-
-This produces fragmentation of what should remain one continuous topic.
-
----
-
-## Impact
-
-The result is fragmented and redundant navigation.
-
-An attorney following the index can be bounced between overlapping rows for what is actually one continuous answer.
-
-This:
-
-- Wastes review time.
-- Makes the index harder to navigate.
-- Reduces confidence in the topic boundaries.
-- Creates uncertainty about which entry should be treated as authoritative.
-
----
-
-## How to Fix
-
-1. Add a minimum-span / merge rule.
-
-2. Fold any candidate topic shorter than a defined number of lines into its neighbor unless it is genuinely a distinct subject.
-
-3. Add a post-processing pass that detects overlapping citation ranges.
-
-4. Detect nested citation ranges automatically.
-
-5. Merge overlapping or nested ranges where the subject matter has not actually changed.
-
-6. Force the model to redraw a single clean boundary when two entries claim the same testimony.
-
----
-
-## Evidence / Citation
-
-### Entry 13 nested inside Entry 12
-
-- Entry 12: p. 19:15–p. 24:4
-- Entry 13: p. 23:19–p. 23:22
-
-Entry 13 sits entirely inside Entry 12's range.
-
-The actual topic does not change at that point. The 4-line segment is an aside within the broader loan-servicing-transfer discussion.
-
----
-
-### Entry 17 nested inside Entry 16
-
-- Entry 16: p. 26:15–p. 27:9
-- Entry 17: p. 26:20–p. 27:1
-
-Entry 17 is entirely contained inside Entry 16.
-
-The two entries are part of the same exchange and should be merged rather than treated as independent topics.
-
----
-
-### Entries 19 and 20 overlap
-
-- Entry 19 ends at p. 38:6.
-- Entry 20 begins at p. 37:19.
-
-This creates a **3-line overlap**.
-
-The same testimony is therefore claimed by both entries.
-
----
-
-# Overall Failure-Analysis Conclusion
-
-The three observed failure cases show that the main weaknesses are concentrated in three parts of the indexing pipeline:
-
-1. **Citation extraction / page indexing**
-2. **Evidence-grounded topic labeling**
-3. **Topic segmentation and boundary post-processing**
-
-The most severe systemic issue is the **+1 page offset**, because it affects every sampled citation.
-
-The topic-label mismatch is also serious because it can confidently direct an attorney to unrelated testimony.
-
-The overlap and nesting problem reduces navigation quality and indicates that topic segmentation requires a stronger merge/de-duplication stage.
-
-Together, these issues support the overall assessment that DepoIndex is **PROTOTYPE-STAGE** and is not yet production-ready for unsupervised attorney use.
-
----
-
-# Relevant Corrective Actions
-
-## 1. Fix Page Indexing
-
-Derive page numbers directly from the transcript's embedded `"Page N"` markers rather than a separately counted physical-page index.
-
-Add an automated citation verifier that re-locates each entry's quoted evidence and rejects citations whose page/line location does not align.
-
----
-
-## 2. Couple Evidence, Boundaries, and Labels
-
-First detect candidate topic boundaries from the raw transcript.
-
-Possible signals include:
-
-- Embedding-similarity shifts
-- Discourse markers such as `"Let's move to..."`
-
-Then generate the topic label strictly from the text inside that boundary.
-
-This reduces the chance that a label will be generated from unrelated surrounding context.
-
----
-
-## 3. Add Merge / De-duplication
 
 Add a post-processing stage that:
 
-- Applies a minimum line/span threshold.
-- Folds very short fragments into neighboring topics when appropriate.
-- Detects overlapping ranges.
-- Detects nested ranges.
-- Merges or redraws boundaries where the subject matter has not actually changed.
+- detects nested ranges,
+- checks whether the subject matter actually changes,
+- merges redundant entries,
+- redraws boundaries when necessary.
 
 ---
 
-## 4. Run Controlled Stability Tests
+# Failure Case 3 — Overlapping Topic Ranges
 
-Run the actual pipeline three or more times using:
+## Entries
 
-- Temperature 0
-- Fixed/deterministic chunking
-- Logged topic counts
-- Logged labels
-- Logged citations
+**Entries 19 and 20**
 
-This would provide genuine automated stability metrics instead of the manual proxy used in the current validation.
+Entry 19:
+
+`p. 37:16–p. 38:6`
+
+Entry 20:
+
+`p. 37:19–p. 42:3`
+
+## What Went Wrong?
+
+The two citation ranges overlap from:
+
+`p. 37:19–p. 38:6`
+
+The same testimony is therefore claimed by both entries.
+
+## What Should Have Happened?
+
+The system should establish one clean boundary between the two topics unless
+the overlapping testimony is explicitly justified as belonging to both.
+
+For a chronological Topic Index, duplicate ownership of the same testimony
+should generally be avoided.
+
+## Why Did It Fail?
+
+Topic boundary detection and post-processing do not currently enforce
+non-overlapping chronological ranges.
+
+## Impact
+
+An attorney following the Topic Index may encounter duplicate testimony
+and uncertainty about which topic owns the passage.
+
+## How to Fix
+
+Add automated overlap detection after topic generation.
+
+When two ranges overlap:
+
+1. Compare their subject matter.
+2. Merge them if they represent the same topic.
+3. Otherwise redraw the boundary at the actual subject-matter transition.
+4. Reject unresolved overlapping ranges.
 
 ---
 
-## 5. Introduce a Controlled Topic Taxonomy
+# Additional Observed Boundary Issue — Lead-In Lines
 
-Introduce a controlled or suggested topic taxonomy derived from the case's:
+Several entries begin on `BY MR. PURCELL` lead-in lines.
 
-- Exhibit list
-- Complaint
-- Issues list
+These locations are technically correct because they correspond to the exact
+numbered transcript blocks.
 
-The model should select from the taxonomy or explicitly justify a deviation.
+However, the first substantive testimony may begin on the following line.
 
-This is intended to reduce label hallucination of the type observed in Entries 5, 6, and 16.
+This is therefore a **boundary-quality issue rather than a location-accuracy
+failure**.
+
+A future refinement could prefer the first substantive testimony line while
+preserving the exact transcript coordinate.
+
+---
+
+# Root-Cause Summary
+
+The observed weaknesses are concentrated in:
+
+1. Evidence-grounded topic labeling
+2. Topic segmentation granularity
+3. Overlap / nested-range handling
+4. Boundary post-processing
+
+The source-location mechanism itself performed correctly for the tested
+Persis Yu PDF.
+
+---
+
+# Corrective Actions
+
+## 1. Evidence-Grounded Labels
+
+Generate labels strictly from the final citation span.
+
+## 2. Boundary Detection
+
+Use subject-matter transitions rather than merely short question/answer
+changes.
+
+## 3. Overlap Detection
+
+Automatically identify overlapping and nested page/line ranges.
+
+## 4. Merge / De-duplication
+
+Merge short fragments when they do not represent meaningful independent
+topics.
+
+## 5. Minimum Span Rule
+
+Introduce a minimum span or minimum semantic-distinctness requirement before
+creating a new Topic Index entry.
+
+## 6. Provenance Validation
+
+Continue validating every generated citation against the original transcript.
+
+---
+
+# Overall Conclusion
+
+The validation shows that DepoIndex's primary current weaknesses are not
+page-location errors but **topic labeling and segmentation quality**.
+
+The 20 sampled citations were correctly mapped to the actual Persis Yu PDF.
+The remaining failures concern whether a cited span deserves its own topic
+and whether neighboring topics should overlap or nest.
+
+The prototype therefore requires stronger evidence-grounded labeling and
+boundary post-processing before it can be considered reliable for
+unsupervised professional use.
