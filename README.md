@@ -313,36 +313,6 @@ Detailed documentation:
 
 - `docs/llm_usage.md`
 
-## Repository Structure
-
-DepoIndex/
-│
-├── backend/
-│ └── app/
-│
-├── data/
-│
-├── docs/
-│ ├── architecture.md
-│ ├── compliance_audit.md
-│ ├── document_analysis.md
-│ ├── failure_analysis.md
-│ ├── llm_usage.md
-│ ├── methodology.md
-│ ├── stability_report.md
-│ ├── validation_report.md
-│ ├── DepoIndex_Complete_Validation_Report.pdf
-│ ├── DepoIndex_Presentation.pdf
-│ └── DepoIndex_Presentation.pptx
-│
-├── output/
-│ ├── depoindex-index (1).json
-│ └── depoindex-topic-index (1).md
-│
-├── README.md
-├── pyproject.toml
-├── .env.example
-└── .gitignore
 
 
 ## Assignment Deliverables
