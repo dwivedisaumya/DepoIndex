@@ -356,7 +356,7 @@ The repository was developed incrementally rather than as a single final commit.
 
 **Final Submission Commit**
 
-`<SHA of the commit containing the final project state before this README metadata update>`
+`7ecae12`
 
 **Meaningful Earlier Commit**
 
